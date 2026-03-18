@@ -20,16 +20,36 @@ except ImportError as e:
     st.error(f"⚠️ خطأ في الاستيراد: تأكد من تشغيل التطبيق من المجلد الرئيسي للمشروع. التفاصيل: {e}")
     st.stop()
 
-# 3. تحميل النموذج مرة واحدة فقط لتسريع التطبيق
+# 3. تحميل النموذج بطريقة "الأوزان فقط" لتجنب خطأ TypeError
 @st.cache_resource
 def load_ai_model():
+    # التحقق من وجود الملف (سواء كان بصيغة keras أو h5)
     model_path = 'model.keras'
-
     if not os.path.exists(model_path):
-        st.error("⚠️ ملف 'model.h5' غير موجود! الرجاء تشغيل ملف AI/AI.py أولاً لتدريب النموذج.")
-        st.stop()
-    return tf.keras.models.load_model(model_path, compile=False)
+        model_path = 'model.h5'
+        if not os.path.exists(model_path):
+            st.error("⚠️ لم يتم العثور على ملف النموذج (model.keras أو model.h5)!")
+            st.stop()
 
+    # بناء هيكل النموذج يدوياً (مطابق تماماً لما تم تدريبه في ملف AI.py)
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(32, (5,5), padding='same', activation='relu', input_shape=(28, 28, 1)),
+        tf.keras.layers.Conv2D(32, (5,5), padding='same', activation='relu'),
+        tf.keras.layers.MaxPool2D(),
+        tf.keras.layers.Dropout(0.25),
+        tf.keras.layers.Conv2D(64, (3,3), padding='same', activation='relu'),
+        tf.keras.layers.Conv2D(64, (3,3), padding='same', activation='relu'),
+        tf.keras.layers.MaxPool2D(strides=(2,2)),
+        tf.keras.layers.Dropout(0.25),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(10, activation='softmax')
+    ])
+    
+    # تحميل "الأوزان" فقط بدلاً من تحميل الملف بالكامل
+    model.load_weights(model_path)
+    return model
 
 # --- دوال المعالجة المستخرجة من واجهة المستخدم القديمة ---
 
@@ -102,7 +122,7 @@ if uploaded_file is not None:
                     
                     if grid_contour is None:
                         status.update(label="فشل المعالجة", state="error", expanded=True)
-                        st.error("لم أتمكن من العثور على شبكة سودوكو واضحة.")
+                        st.error("لم أتمكن من العثور على شبكة سودوكو واضحة في الصورة.")
                         st.stop()
 
                     # الخطوة 3
