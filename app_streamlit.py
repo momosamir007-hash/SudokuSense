@@ -23,7 +23,8 @@ except ImportError as e:
 # 3. تحميل النموذج مرة واحدة فقط لتسريع التطبيق
 @st.cache_resource
 def load_ai_model():
-    model_path = 'model.h5'
+    model_path = 'model.keras'
+
     if not os.path.exists(model_path):
         st.error("⚠️ ملف 'model.h5' غير موجود! الرجاء تشغيل ملف AI/AI.py أولاً لتدريب النموذج.")
         st.stop()
