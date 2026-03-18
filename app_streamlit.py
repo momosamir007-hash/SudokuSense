@@ -11,19 +11,40 @@ sys.path.append('./ImageProcess')
 sys.path.append('./Results')
 sys.path.append('./Solver')
 
-# 2. استيراد دوال المشروع الأصلية
+# 2. استيراد دوال المشروع الأصلية (مع استبعاد drawGrid لتجنب خطأ الخطوط)
 try:
     from processing import main_processing
-    from drawGrid import mainDraw
     from solver import mainSolver
 except ImportError as e:
     st.error(f"⚠️ خطأ في الاستيراد: تأكد من تشغيل التطبيق من المجلد الرئيسي للمشروع. التفاصيل: {e}")
     st.stop()
 
-# 3. تحميل النموذج بطريقة "الأوزان فقط" لتجنب خطأ TypeError
+# 3. دالة الرسم الجديدة (ترسم الشبكة والأرقام برمجياً بدون الحاجة لملفات خارجية)
+def draw_sudoku_result(grid, filename="sudoku_completed.jpg"):
+    # إنشاء صورة بيضاء بحجم 450x450 بكسل
+    img = np.ones((450, 450, 3), dtype=np.uint8) * 255
+    
+    # رسم خطوط الشبكة (سميكة للمربعات 3x3، ورفيعة للغرف الصغيرة)
+    for i in range(10):
+        thickness = 3 if i % 3 == 0 else 1
+        cv2.line(img, (0, i * 50), (450, i * 50), (0, 0, 0), thickness)
+        cv2.line(img, (i * 50, 0), (i * 50, 450), (0, 0, 0), thickness)
+        
+    # كتابة الأرقام داخل المربعات
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    for y in range(9):
+        for x in range(9):
+            if grid[y][x] != 0:
+                text = str(grid[y][x])
+                # لون الأرقام هنا أحمر ليكون واضحاً
+                cv2.putText(img, text, (x * 50 + 15, y * 50 + 35), font, 1, (0, 0, 200), 2, cv2.LINE_AA)
+                
+    # حفظ الصورة النهائية
+    cv2.imwrite(filename, img)
+
+# 4. تحميل النموذج بطريقة "الأوزان فقط" لتجنب خطأ TypeError
 @st.cache_resource
 def load_ai_model():
-    # التحقق من وجود الملف (سواء كان بصيغة keras أو h5)
     model_path = 'model.keras'
     if not os.path.exists(model_path):
         model_path = 'model.h5'
@@ -31,7 +52,7 @@ def load_ai_model():
             st.error("⚠️ لم يتم العثور على ملف النموذج (model.keras أو model.h5)!")
             st.stop()
 
-    # بناء هيكل النموذج يدوياً (مطابق تماماً لما تم تدريبه في ملف AI.py)
+    # بناء هيكل النموذج يدوياً
     model = tf.keras.models.Sequential([
         tf.keras.layers.Conv2D(32, (5,5), padding='same', activation='relu', input_shape=(28, 28, 1)),
         tf.keras.layers.Conv2D(32, (5,5), padding='same', activation='relu'),
@@ -47,7 +68,7 @@ def load_ai_model():
         tf.keras.layers.Dense(10, activation='softmax')
     ])
     
-    # تحميل "الأوزان" فقط بدلاً من تحميل الملف بالكامل
+    # تحميل الأوزان فقط
     model.load_weights(model_path)
     return model
 
@@ -144,11 +165,11 @@ if uploaded_file is not None:
                     
                     if result_grid == -1:
                         st.warning("الشبكة المستخرجة غير قابلة للحل (قد يكون الذكاء الاصطناعي أخطأ في قراءة رقم).")
-                        mainDraw(grid_numbers)
+                        draw_sudoku_result(grid_numbers)
                         status.update(label="اكتمل مع وجود أخطاء", state="complete", expanded=False)
                     else:
                         st.write("✅ تم إيجاد الحل! جاري الرسم...")
-                        mainDraw(result_grid)
+                        draw_sudoku_result(result_grid)
                         status.update(label="تم الحل بنجاح!", state="complete", expanded=False)
 
                     # الخطوة 6: عرض النتيجة
