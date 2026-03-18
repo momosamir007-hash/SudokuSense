@@ -28,7 +28,8 @@ def load_ai_model():
     if not os.path.exists(model_path):
         st.error("⚠️ ملف 'model.h5' غير موجود! الرجاء تشغيل ملف AI/AI.py أولاً لتدريب النموذج.")
         st.stop()
-    return tf.keras.models.load_model(model_path)
+    return tf.keras.models.load_model(model_path, compile=False)
+
 
 # --- دوال المعالجة المستخرجة من واجهة المستخدم القديمة ---
 
