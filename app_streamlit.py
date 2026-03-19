@@ -9,6 +9,7 @@ import copy
 import zipfile
 import tempfile
 
+# ─── مسارات المشروع ───
 sys.path.append('./ImageProcess')
 sys.path.append('./Results')
 sys.path.append('./Solver')
@@ -34,56 +35,31 @@ except ImportError:
 # تحميل النموذج — متوافق مع جميع إصدارات Keras
 # ══════════════════════════════════════════════════════════════
 def build_original_model():
-    """ بناء بنية النموذج الأصلي يدوياً (نفس البنية الموجودة في config الخطأ) """
+    """ بناء بنية النموذج الأصلي يدوياً """
     model = tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(
-            32, (5, 5), padding='same', activation='relu', input_shape=(28, 28, 1), name='conv2d'
-        ),
-        tf.keras.layers.Conv2D(
-            32, (5, 5), padding='same', activation='relu', name='conv2d_1'
-        ),
-        tf.keras.layers.MaxPooling2D(
-            pool_size=(2, 2), name='max_pooling2d'
-        ),
+        tf.keras.layers.Conv2D(32, (5, 5), padding='same', activation='relu', input_shape=(28, 28, 1), name='conv2d'),
+        tf.keras.layers.Conv2D(32, (5, 5), padding='same', activation='relu', name='conv2d_1'),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2), name='max_pooling2d'),
         tf.keras.layers.Dropout(0.25, name='dropout'),
-        tf.keras.layers.Conv2D(
-            64, (3, 3), padding='same', activation='relu', name='conv2d_2'
-        ),
-        tf.keras.layers.Conv2D(
-            64, (3, 3), padding='same', activation='relu', name='conv2d_3'
-        ),
-        tf.keras.layers.MaxPooling2D(
-            pool_size=(2, 2), strides=(2, 2), name='max_pooling2d_1'
-        ),
+        tf.keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu', name='conv2d_2'),
+        tf.keras.layers.Conv2D(64, (3, 3), padding='same', activation='relu', name='conv2d_3'),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2), name='max_pooling2d_1'),
         tf.keras.layers.Dropout(0.25, name='dropout_1'),
         tf.keras.layers.Flatten(name='flatten'),
-        tf.keras.layers.Dense(
-            128, activation='relu', name='dense'
-        ),
+        tf.keras.layers.Dense(128, activation='relu', name='dense'),
         tf.keras.layers.Dropout(0.5, name='dropout_2'),
-        tf.keras.layers.Dense(
-            10, activation='softmax', name='dense_1'
-        ),
+        tf.keras.layers.Dense(10, activation='softmax', name='dense_1'),
     ])
-    model.compile(
-        optimizer='adam',
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy']
-    )
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     return model
 
 def extract_weights_from_keras_file(keras_path):
-    """ ملف .keras هو في الحقيقة ملف ZIP يحتوي:
-        - config.json
-        - model.weights.h5
-        نستخرج ملف الأوزان منه """
+    """ استخراج ملف الأوزان من داخل صيغة .keras """
     temp_dir = tempfile.mkdtemp()
     weights_path = None
     try:
         with zipfile.ZipFile(keras_path, 'r') as zf:
             file_list = zf.namelist()
-            st.info(f"📦 محتويات ملف .keras: {file_list}")
-            # البحث عن ملف الأوزان
             for name in file_list:
                 if 'weights' in name.lower() and name.endswith('.h5'):
                     weights_path = os.path.join(temp_dir, 'weights.h5')
@@ -91,111 +67,67 @@ def extract_weights_from_keras_file(keras_path):
                         wf.write(zf.read(name))
                     break
     except zipfile.BadZipFile:
-        # ليس ملف ZIP — ربما هو ملف H5 مباشرة
         return None
     return weights_path
 
 @st.cache_resource
 def load_ai_model():
-    """ تحميل النموذج بـ 5 طرق مختلفة حسب الإصدار: """
+    """ تحميل النموذج بـ 6 طرق مختلفة لضمان العمل على أي إصدار """
     model_path = None
     for p in ['model.keras', 'model.h5']:
         if os.path.exists(p):
             model_path = p
             break
     if model_path is None:
-        st.error("⚠️ لم يُعثر على ملف النموذج!")
         return None
-    st.info(f"📂 ملف النموذج: `{model_path}` | TF: `{tf.__version__}`")
 
-    # ═══════════════════════════════════════════
-    # الطريقة 1: تحميل مباشر (إذا الإصدارات متوافقة)
-    # ═══════════════════════════════════════════
+    # الطريقة 1
     try:
-        model = tf.keras.models.load_model(model_path)
-        st.success("✅ تم تحميل النموذج مباشرة")
-        return model
-    except Exception as e1:
-        st.warning(f"⚠️ الطريقة 1 فشلت: {str(e1)[:100]}")
-
-    # ═══════════════════════════════════════════
-    # الطريقة 2: تحميل مع compile=False
-    # ═══════════════════════════════════════════
+        return tf.keras.models.load_model(model_path)
+    except Exception:
+        pass
+    
+    # الطريقة 2
     try:
-        model = tf.keras.models.load_model(
-            model_path, compile=False
-        )
-        model.compile(
-            optimizer='adam',
-            loss='sparse_categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        st.success("✅ تم تحميل النموذج (بدون compile)")
+        model = tf.keras.models.load_model(model_path, compile=False)
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
         return model
-    except Exception as e2:
-        st.warning(f"⚠️ الطريقة 2 فشلت: {str(e2)[:100]}")
+    except Exception:
+        pass
 
-    # ═══════════════════════════════════════════
-    # الطريقة 3: تحميل مع safe_mode=False
-    # ═══════════════════════════════════════════
+    # الطريقة 3
     try:
-        model = tf.keras.models.load_model(
-            model_path, compile=False, safe_mode=False
-        )
-        model.compile(
-            optimizer='adam',
-            loss='sparse_categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        st.success("✅ تم تحميل النموذج (safe_mode=False)")
+        model = tf.keras.models.load_model(model_path, compile=False, safe_mode=False)
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
         return model
-    except Exception as e3:
-        st.warning(f"⚠️ الطريقة 3 فشلت: {str(e3)[:100]}")
+    except Exception:
+        pass
 
-    # ═══════════════════════════════════════════
-    # الطريقة 4: بناء يدوي + تحميل أوزان مباشرة
-    # ═══════════════════════════════════════════
+    # الطريقة 4
     try:
         model = build_original_model()
         model.load_weights(model_path)
-        st.success("✅ تم تحميل الأوزان مباشرة")
         return model
-    except Exception as e4:
-        st.warning(f"⚠️ الطريقة 4 فشلت: {str(e4)[:100]}")
+    except Exception:
+        pass
 
-    # ═══════════════════════════════════════════
-    # الطريقة 5: فك ملف .keras واستخراج الأوزان
-    # ═══════════════════════════════════════════
+    # الطريقة 5
     if model_path.endswith('.keras'):
         try:
-            st.info("🔧 محاولة استخراج الأوزان من ملف .keras ...")
             weights_path = extract_weights_from_keras_file(model_path)
             if weights_path and os.path.exists(weights_path):
                 model = build_original_model()
-                # تشغيل مرة واحدة لبناء الطبقات
                 dummy = np.zeros((1, 28, 28, 1), dtype=np.float32)
                 _ = model.predict(dummy, verbose=0)
                 model.load_weights(weights_path)
-                st.success("✅ تم استخراج الأوزان من .keras وتحميلها!")
-                # تنظيف الملف المؤقت
-                try:
-                    os.remove(weights_path)
-                except Exception:
-                    pass
+                try: os.remove(weights_path)
+                except Exception: pass
                 return model
-            else:
-                st.warning("⚠️ لم يُعثر على ملف أوزان داخل .keras")
-        except Exception as e5:
-            st.warning(f"⚠️ الطريقة 5 فشلت: {str(e5)[:200]}")
+        except Exception:
+            pass
 
-    # ═══════════════════════════════════════════
-    # الطريقة 6: البحث عن ملفات أوزان منفصلة
-    # ═══════════════════════════════════════════
-    weight_files = [
-        'model_weights.weights.h5',
-        'model_weights.h5',
-        'weights.h5',
-    ]
+    # الطريقة 6
+    weight_files = ['model_weights.weights.h5', 'model_weights.h5', 'weights.h5']
     for wf in weight_files:
         if os.path.exists(wf):
             try:
@@ -203,16 +135,13 @@ def load_ai_model():
                 dummy = np.zeros((1, 28, 28, 1), dtype=np.float32)
                 _ = model.predict(dummy, verbose=0)
                 model.load_weights(wf)
-                st.success(f"✅ تم تحميل الأوزان من: {wf}")
                 return model
-            except Exception as e6:
-                st.warning(f"⚠️ فشل تحميل {wf}: {str(e6)[:100]}")
-
-    st.error("❌ فشلت جميع طرق تحميل النموذج!")
+            except Exception:
+                pass
     return None
 
 # ══════════════════════════════════════════════════════════════
-# دوال المعالجة والحل
+# دوال المعالجة والحل (مُحدثة بالذكاء اللوني)
 # ══════════════════════════════════════════════════════════════
 def safe_rerun():
     try:
@@ -223,69 +152,98 @@ def safe_rerun():
 CONFUSED_PAIRS = {1: [7], 7: [1], 9: [4], 4: [9], 5: [2], 2: [5]}
 
 def preprocess_digit_cell(cell_img):
+    """ معالجة ذكية تضمن أن الخلفية سوداء والرقم أبيض لتطابق MNIST """
     if cell_img is None or cell_img.size == 0:
         return None, False
+
+    # 1. تحويل للصيغة الرمادية
     if len(cell_img.shape) == 3:
         gray = cv2.cvtColor(cell_img, cv2.COLOR_BGR2GRAY)
     else:
         gray = cell_img.copy()
-    _, thresh = cv2.threshold(
-        gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-    )
+
+    # 2. العتبة التلقائية (Otsu) لفصل الرقم عن الخلفية بوضوح
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+
+    # 3. ضمان أن الخلفية سوداء والرقم أبيض (MNIST Style)
+    white_pixels = cv2.countNonZero(thresh)
+    total_pixels = thresh.shape[0] * thresh.shape[1]
+
+    # إذا كان الأبيض أكثر من النصف (الخلفية بيضاء)، نقلب الألوان
+    if white_pixels > (total_pixels / 2):
+        thresh = cv2.bitwise_not(thresh)
+
+    # 4. مسح حواف الخلية لتجنب التشويش
     h, w = thresh.shape
-    mh, mw = int(h * 0.18), int(w * 0.18)
-    cropped = thresh[mh:h - mh, mw:w - mw]
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    cropped = cv2.morphologyEx(cropped, cv2.MORPH_OPEN, kernel)
+    margin = int(min(h, w) * 0.15)
+    cropped = thresh[margin:h-margin, margin:w-margin]
+
+    # 5. البحث عن الرقم
     coords = cv2.findNonZero(cropped)
     if coords is None:
         return None, False
+
     x, y, bw, bh = cv2.boundingRect(coords)
-    digit = cropped[y:y + bh, x:x + bw]
-    ratio = np.sum(digit > 0) / max(digit.size, 1)
-    if ratio < 0.06 or bh < 5 or bw < 3:
+
+    # تجاهل غبار الصورة
+    if bw < 3 or bh < 6:
         return None, False
-    mx = max(bh, bw)
-    pt, pb = (mx - bh) // 2, mx - bh - (mx - bh) // 2
-    pl, pr = (mx - bw) // 2, mx - bw - (mx - bw) // 2
-    digit = cv2.copyMakeBorder(digit, pt, pb, pl, pr, cv2.BORDER_CONSTANT, value=0)
-    margin = int(mx * 0.35)
-    digit = cv2.copyMakeBorder(digit, margin, margin, margin, margin, cv2.BORDER_CONSTANT, value=0)
-    digit = cv2.resize(digit, (28, 28), interpolation=cv2.INTER_AREA)
-    digit = cv2.GaussianBlur(digit, (3, 3), 0.5)
-    digit = digit.astype(np.float32) / 255.0
-    return digit, True
+
+    # 6. قص الرقم فقط
+    digit = cropped[y:y+bh, x:x+bw]
+
+    # 7. جعل الصورة مربعة تماماً
+    max_dim = max(bw, bh)
+    pad_y = (max_dim - bh) // 2
+    pad_x = (max_dim - bw) // 2
+    squared = cv2.copyMakeBorder(digit, pad_y, pad_y, pad_x, pad_x, cv2.BORDER_CONSTANT, value=0)
+
+    # 8. إضافة هامش خارجي
+    padding = int(max_dim * 0.3)
+    padded = cv2.copyMakeBorder(squared, padding, padding, padding, padding, cv2.BORDER_CONSTANT, value=0)
+
+    # 9. تصغير لحجم النموذج والتطبيع
+    resized = cv2.resize(padded, (28, 28), interpolation=cv2.INTER_AREA)
+    smoothed = cv2.GaussianBlur(resized, (3, 3), 0)
+    normalized = smoothed.astype(np.float32) / 255.0
+
+    return normalized, True
 
 def recognize_with_confidence(images, model, conf_threshold=0.75):
     grid = [[0] * 9 for _ in range(9)]
     confidence = [[1.0] * 9 for _ in range(9)]
     alternatives = [[[] for _ in range(9)] for _ in range(9)]
     uncertain = set()
+
     for item in images:
         x_pos, y_pos, has_digit = item[1], item[2], item[3]
         if not has_digit:
             continue
+
         processed, valid = preprocess_digit_cell(item[0])
         if not valid:
             continue
+
         inp = processed.reshape(1, 28, 28, 1)
         probs = model.predict(inp, verbose=0)[0]
         top = [i for i in np.argsort(probs)[::-1] if i != 0][:5]
+
         if not top:
             continue
+
         pred = top[0]
         conf = float(probs[pred])
         grid[y_pos][x_pos] = pred
         confidence[y_pos][x_pos] = conf
-        alternatives[y_pos][x_pos] = [
-            (int(i), float(probs[i])) for i in top if i != 0
-        ]
+        alternatives[y_pos][x_pos] = [(int(i), float(probs[i])) for i in top if i != 0]
+
         if pred in CONFUSED_PAIRS:
             for cd in CONFUSED_PAIRS[pred]:
                 if float(probs[cd]) > conf * 0.35:
                     uncertain.add((y_pos, x_pos))
         if conf < conf_threshold:
             uncertain.add((y_pos, x_pos))
+
     return grid, confidence, alternatives, uncertain
 
 def find_conflicts(grid):
@@ -299,7 +257,6 @@ def find_conflicts(grid):
                     conflicts.add((i, j))
                     conflicts.add((i, seen[v]))
                 seen[v] = j
-    for i in range(9):
         seen = {}
         for j in range(9):
             v = grid[j][i]
@@ -346,12 +303,8 @@ def auto_correct(grid, confidence, alternatives):
             corrected[r][c] = alt_val
             if len(find_conflicts(corrected)) < len(conflicts):
                 corrections.append({
-                    'row': r,
-                    'col': c,
-                    'old': old_val,
-                    'new': alt_val,
-                    'old_conf': worst_conf,
-                    'new_conf': alt_conf
+                    'row': r, 'col': c, 'old': old_val, 'new': alt_val,
+                    'old_conf': worst_conf, 'new_conf': alt_conf
                 })
                 conf[r][c] = alt_conf
                 fixed = True
@@ -362,15 +315,12 @@ def auto_correct(grid, confidence, alternatives):
     return corrected, corrections
 
 def _valid(g, r, c, n):
-    if n in g[r]:
-        return False
-    if n in [g[i][c] for i in range(9)]:
-        return False
+    if n in g[r]: return False
+    if n in [g[i][c] for i in range(9)]: return False
     sr, sc = 3 * (r // 3), 3 * (c // 3)
     for i in range(sr, sr + 3):
         for j in range(sc, sc + 3):
-            if g[i][j] == n:
-                return False
+            if g[i][j] == n: return False
     return True
 
 def _backtrack(g):
@@ -380,8 +330,7 @@ def _backtrack(g):
                 for n in range(1, 10):
                     if _valid(g, i, j, n):
                         g[i][j] = n
-                        if _backtrack(g):
-                            return True
+                        if _backtrack(g): return True
                         g[i][j] = 0
                 return False
     return True
@@ -400,18 +349,11 @@ def solve_puzzle(grid):
 def process_image_binary(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    return cv2.adaptiveThreshold(
-        blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 4
-    )
+    return cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 11, 4)
 
 def find_grid_contour(binary):
-    contours, _ = cv2.findContours(
-        binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
-    contours = sorted(
-        [c for c in contours if cv2.contourArea(c) > 1000],
-        key=cv2.contourArea, reverse=True
-    )
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = sorted([c for c in contours if cv2.contourArea(c) > 1000], key=cv2.contourArea, reverse=True)
     for cnt in contours:
         peri = cv2.arcLength(cnt, True)
         approx = cv2.approxPolyDP(cnt, 0.02 * peri, True)
@@ -453,29 +395,29 @@ def render_sudoku_html(grid, original_grid=None, uncertain_cells=None, corrected
     corrected_cells = corrected_cells or set()
     html = """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
-        .sw{display:flex;flex-direction:column;align-items:center; font-family:'Poppins',sans-serif;padding:10px}
-        .stitle{font-size:18px;font-weight:700;color:#1a237e;margin-bottom:12px}
-        .sb{border-collapse:collapse;border:4px solid #1a237e; border-radius:8px;overflow:hidden; box-shadow:0 8px 32px rgba(26,35,126,.18);background:#fff}
-        .sb td{width:56px;height:56px;text-align:center;vertical-align:middle; font-size:28px;font-weight:700;border:1px solid #cfd8dc; transition:background .15s;position:relative;cursor:default}
-        .sb td:hover{background:#fff9c4!important}
-        .sb td.br{border-right:3px solid #1a237e!important}
-        .sb td.bb{border-bottom:3px solid #1a237e!important}
-        .sb td.bl{border-left:3px solid #1a237e!important}
-        .sb td.bt{border-top:3px solid #1a237e!important}
-        .sb td.orig{color:#1a237e;background:#e8eaf6}
-        .sb td.solved{color:#1b5e20;background:#e8f5e9}
-        .sb td.empty{color:#e0e0e0;background:#fafafa}
-        .sb td.uncertain{color:#e65100!important;background:#fff3e0!important; animation:pulse 1.5s infinite}
-        .sb td.corrected{color:#6a1b9a!important;background:#f3e5f5!important}
-        .sb td.shaded{background:#f3f0ff}
-        .sb td.shaded.orig{background:#e0dcf7}
-        .sb td.shaded.solved{background:#d7f0d9}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-        .sb td .conf{position:absolute;bottom:2px;right:3px; font-size:8px;color:#999;font-weight:400}
-        .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px; font-size:12px;color:#555}
-        .legend-item{display:flex;align-items:center;gap:5px}
-        .legend-box{width:18px;height:18px;border-radius:3px;border:1px solid #bbb}
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
+    .sw{display:flex;flex-direction:column;align-items:center; font-family:'Poppins',sans-serif;padding:10px}
+    .stitle{font-size:18px;font-weight:700;color:#1a237e;margin-bottom:12px}
+    .sb{border-collapse:collapse;border:4px solid #1a237e; border-radius:8px;overflow:hidden; box-shadow:0 8px 32px rgba(26,35,126,.18);background:#fff}
+    .sb td{width:56px;height:56px;text-align:center;vertical-align:middle; font-size:28px;font-weight:700;border:1px solid #cfd8dc; transition:background .15s;position:relative;cursor:default}
+    .sb td:hover{background:#fff9c4!important}
+    .sb td.br{border-right:3px solid #1a237e!important}
+    .sb td.bb{border-bottom:3px solid #1a237e!important}
+    .sb td.bl{border-left:3px solid #1a237e!important}
+    .sb td.bt{border-top:3px solid #1a237e!important}
+    .sb td.orig{color:#1a237e;background:#e8eaf6}
+    .sb td.solved{color:#1b5e20;background:#e8f5e9}
+    .sb td.empty{color:#e0e0e0;background:#fafafa}
+    .sb td.uncertain{color:#e65100!important;background:#fff3e0!important; animation:pulse 1.5s infinite}
+    .sb td.corrected{color:#6a1b9a!important;background:#f3e5f5!important}
+    .sb td.shaded{background:#f3f0ff}
+    .sb td.shaded.orig{background:#e0dcf7}
+    .sb td.shaded.solved{background:#d7f0d9}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .sb td .conf{position:absolute;bottom:2px;right:3px; font-size:8px;color:#999;font-weight:400}
+    .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px; font-size:12px;color:#555}
+    .legend-item{display:flex;align-items:center;gap:5px}
+    .legend-box{width:18px;height:18px;border-radius:3px;border:1px solid #bbb}
     </style>
     <div class="sw">
     """
@@ -487,32 +429,23 @@ def render_sudoku_html(grid, original_grid=None, uncertain_cells=None, corrected
         for c in range(9):
             val = int(grid[r][c])
             cls = []
-            if c % 3 == 0 and c > 0:
-                cls.append("bl")
-            if c % 3 == 2 and c < 8:
-                cls.append("br")
-            if r % 3 == 0 and r > 0:
-                cls.append("bt")
-            if r % 3 == 2 and r < 8:
-                cls.append("bb")
-            if (r // 3 + c // 3) % 2 == 0:
-                cls.append("shaded")
-            if (r, c) in corrected_cells:
-                cls.append("corrected")
-            elif (r, c) in uncertain_cells:
-                cls.append("uncertain")
-            elif val == 0:
-                cls.append("empty")
-            elif original_grid and int(original_grid[r][c]) != 0:
-                cls.append("orig")
-            else:
-                cls.append("solved")
+            if c % 3 == 0 and c > 0: cls.append("bl")
+            if c % 3 == 2 and c < 8: cls.append("br")
+            if r % 3 == 0 and r > 0: cls.append("bt")
+            if r % 3 == 2 and r < 8: cls.append("bb")
+            if (r // 3 + c // 3) % 2 == 0: cls.append("shaded")
+
+            if (r, c) in corrected_cells: cls.append("corrected")
+            elif (r, c) in uncertain_cells: cls.append("uncertain")
+            elif val == 0: cls.append("empty")
+            elif original_grid and int(original_grid[r][c]) != 0: cls.append("orig")
+            else: cls.append("solved")
+
             text = str(val) if val != 0 else ""
             conf_html = ""
             if confidence and val != 0:
                 cv_val = confidence[r][c]
-                if cv_val < 1.5:
-                    conf_html = f'<span class="conf">{cv_val:.0%}</span>'
+                if cv_val < 1.5: conf_html = f'<span class="conf">{cv_val:.0%}</span>'
             html += f'<td class="{" ".join(cls)}">{text}{conf_html}</td>'
         html += "</tr>"
     html += "</table>"
@@ -533,12 +466,12 @@ st.set_page_config(page_title="SudokuSense AI", page_icon="🧩", layout="center
 
 st.markdown("""
 <style>
-    .block-container{max-width:820px}
-    div[data-testid="stForm"]{border:4px solid #1a237e!important; border-radius:14px!important;padding:22px 18px!important; background:linear-gradient(145deg,#f8f9ff,#eef0ff)!important; box-shadow:0 6px 24px rgba(26,35,126,.12)!important}
-    div[data-testid="stForm"] div[data-testid="stTextInput"] input{ text-align:center!important;font-size:26px!important; font-weight:800!important;color:#1a237e!important; height:54px!important;border:1.5px solid #b0bec5!important; border-radius:6px!important;padding:0!important;background:#fff!important}
-    div[data-testid="stForm"] div[data-testid="stTextInput"] input:focus{ border-color:#1565c0!important; box-shadow:0 0 0 3px rgba(21,101,192,.3)!important; background:#e3f2fd!important}
-    div[data-testid="stForm"] div[data-testid="stTextInput"] input::placeholder{ color:#d0d0d0!important;font-size:20px!important}
-    .block-divider{border:none;height:4px; background:linear-gradient(90deg,transparent,#1a237e,transparent); margin:5px 0 7px 0;border-radius:4px}
+.block-container{max-width:820px}
+div[data-testid="stForm"]{border:4px solid #1a237e!important; border-radius:14px!important;padding:22px 18px!important; background:linear-gradient(145deg,#f8f9ff,#eef0ff)!important; box-shadow:0 6px 24px rgba(26,35,126,.12)!important}
+div[data-testid="stForm"] div[data-testid="stTextInput"] input{ text-align:center!important;font-size:26px!important; font-weight:800!important;color:#1a237e!important; height:54px!important;border:1.5px solid #b0bec5!important; border-radius:6px!important;padding:0!important;background:#fff!important}
+div[data-testid="stForm"] div[data-testid="stTextInput"] input:focus{ border-color:#1565c0!important; box-shadow:0 0 0 3px rgba(21,101,192,.3)!important; background:#e3f2fd!important}
+div[data-testid="stForm"] div[data-testid="stTextInput"] input::placeholder{ color:#d0d0d0!important;font-size:20px!important}
+.block-divider{border:none;height:4px; background:linear-gradient(90deg,transparent,#1a237e,transparent); margin:5px 0 7px 0;border-radius:4px}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""
@@ -548,22 +481,16 @@ st.markdown("""
 </div>""", unsafe_allow_html=True)
 
 defaults = {
-    'grid': None,
-    'solved': None,
-    'original': None,
-    'confidence': None,
-    'alternatives': None,
-    'uncertain': set(),
-    'corrections': [],
+    'grid': None, 'solved': None, 'original': None,
+    'confidence': None, 'alternatives': None,
+    'uncertain': set(), 'corrections': [],
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ── تحميل النموذج ──
 model = load_ai_model()
 
-# ── التبويبات ──
 tab_img, tab_manual = st.tabs(["📷 استخراج من صورة", "✏️ إدخال يدوي"])
 
 with tab_img:
@@ -571,14 +498,13 @@ with tab_img:
     if uploaded:
         pil_img = Image.open(uploaded).convert('RGB')
         st.image(pil_img, caption="الصورة المرفوعة", width=320)
+        
         if model is None:
             st.error("❌ النموذج غير متاح — راجع الأخطاء أعلاه")
         elif main_processing is None:
             st.warning("⚠️ وحدة processing غير متوفرة")
         else:
-            conf_thresh = st.slider(
-                "🎚️ حد الثقة", 0.50, 0.95, 0.75, 0.05
-            )
+            conf_thresh = st.slider("🎚️ حد الثقة", 0.50, 0.95, 0.75, 0.05)
             if st.button("🔍 استخراج وتصحيح", type="primary", use_container_width=True, key="btn_extract"):
                 cv_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
                 with st.status("جاري المعالجة …", expanded=True) as status:
@@ -588,14 +514,16 @@ with tab_img:
                     if contour is None:
                         st.error("❌ لم يُعثر على شبكة")
                         st.stop()
+                    
                     st.write("✂️ تقسيم الشبكة …")
                     ok, imgs, _ = main_processing(contour, binary)
                     if not ok:
                         st.error("❌ فشل التقسيم")
                         st.stop()
+                    
                     st.write("🤖 قراءة الأرقام …")
-                    grid, conf, alts, uncertain = \
-                        recognize_with_confidence(imgs, model, conf_thresh)
+                    grid, conf, alts, uncertain = recognize_with_confidence(imgs, model, conf_thresh)
+                    
                     conflicts = find_conflicts(grid)
                     st.write(f"🔎 تعارضات: **{len(conflicts)}**")
                     corrections = []
@@ -603,6 +531,7 @@ with tab_img:
                         st.write("🔧 تصحيح تلقائي …")
                         grid, corrections = auto_correct(grid, conf, alts)
                         st.write(f"✅ تصحيحات: **{len(corrections)}**")
+                    
                     st.session_state.grid = grid
                     st.session_state.original = copy.deepcopy(grid)
                     st.session_state.confidence = conf
@@ -611,6 +540,7 @@ with tab_img:
                     st.session_state.corrections = corrections
                     st.session_state.solved = None
                     status.update(label="✅ اكتمل!", state="complete")
+                
                 if corrections:
                     st.info("🔧 التصحيحات:")
                     for f in corrections:
@@ -629,15 +559,9 @@ with tab_manual:
     with cb:
         if st.button("🧪 مثال", use_container_width=True, key="btn_example"):
             ex = [
-                [5, 3, 0, 0, 7, 0, 0, 0, 0],
-                [6, 0, 0, 1, 9, 5, 0, 0, 0],
-                [0, 9, 8, 0, 0, 0, 0, 6, 0],
-                [8, 0, 0, 0, 6, 0, 0, 0, 3],
-                [4, 0, 0, 8, 0, 3, 0, 0, 1],
-                [7, 0, 0, 0, 2, 0, 0, 0, 6],
-                [0, 6, 0, 0, 0, 0, 2, 8, 0],
-                [0, 0, 0, 4, 1, 9, 0, 0, 5],
-                [0, 0, 0, 0, 8, 0, 0, 7, 9],
+                [5, 3, 0, 0, 7, 0, 0, 0, 0], [6, 0, 0, 1, 9, 5, 0, 0, 0], [0, 9, 8, 0, 0, 0, 0, 6, 0],
+                [8, 0, 0, 0, 6, 0, 0, 0, 3], [4, 0, 0, 8, 0, 3, 0, 0, 1], [7, 0, 0, 0, 2, 0, 0, 0, 6],
+                [0, 6, 0, 0, 0, 0, 2, 8, 0], [0, 0, 0, 4, 1, 9, 0, 0, 5], [0, 0, 0, 0, 8, 0, 0, 7, 9],
             ]
             st.session_state.grid = ex
             st.session_state.original = copy.deepcopy(ex)
@@ -675,16 +599,15 @@ if st.session_state.grid is not None:
     st.markdown("---")
     corrected_set = {(f['row'], f['col']) for f in st.session_state.corrections}
     preview = render_sudoku_html(
-        st.session_state.grid,
-        title="الشبكة الحالية",
+        st.session_state.grid, title="الشبكة الحالية",
         uncertain_cells=st.session_state.uncertain,
-        corrected_cells=corrected_set,
-        confidence=st.session_state.confidence
+        corrected_cells=corrected_set, confidence=st.session_state.confidence
     )
     components.html(preview, height=590, scrolling=False)
+    
     st.markdown('<p style="text-align:center;color:#5c6bc0;font-weight:600">⬇️ عدّل ثم اضغط <b>🚀 حل</b></p>', unsafe_allow_html=True)
-
     edited = [[0] * 9 for _ in range(9)]
+    
     with st.form("sudoku_form", clear_on_submit=False):
         for block_row in range(3):
             for local_row in range(3):
@@ -696,15 +619,13 @@ if st.session_state.grid is not None:
                     with cols[mapping[c]]:
                         v = st.session_state.grid[row][c]
                         disp = str(v) if v != 0 else ""
-                        res = st.text_input(
-                            "​", value=disp, key=f"sc_{row}_{c}",
-                            max_chars=1, label_visibility="collapsed", placeholder="·"
-                        )
+                        res = st.text_input("​", value=disp, key=f"sc_{row}_{c}", max_chars=1, label_visibility="collapsed", placeholder="·")
                         if res and res.strip().isdigit():
                             d = int(res.strip())
                             edited[row][c] = d if 1 <= d <= 9 else 0
             if block_row < 2:
                 st.markdown('<hr class="block-divider">', unsafe_allow_html=True)
+        
         st.markdown("<br>", unsafe_allow_html=True)
         b1, b2, b3 = st.columns(3)
         with b1:
@@ -724,12 +645,12 @@ if st.session_state.grid is not None:
                     safe_rerun()
                 else:
                     st.error("❌ غير قابلة للحل!")
+
         if reset_btn:
-            st.session_state.grid = copy.deepcopy(
-                st.session_state.original or [[0] * 9 for _ in range(9)]
-            )
+            st.session_state.grid = copy.deepcopy(st.session_state.original or [[0] * 9 for _ in range(9)])
             st.session_state.solved = None
             safe_rerun()
+
         if clear_btn:
             for k in defaults:
                 st.session_state[k] = defaults[k]
@@ -739,23 +660,12 @@ if st.session_state.grid is not None:
 if st.session_state.solved is not None:
     st.markdown("---")
     st.subheader("✅ الحل النهائي")
-    solved_html = render_sudoku_html(
-        st.session_state.solved,
-        st.session_state.original,
-        title="🎉 تم الحل!"
-    )
+    solved_html = render_sudoku_html(st.session_state.solved, st.session_state.original, title="🎉 تم الحل!")
     components.html(solved_html, height=620, scrolling=False)
-    result_img = draw_sudoku_image(
-        st.session_state.solved,
-        st.session_state.original
-    )
+    
+    result_img = draw_sudoku_image(st.session_state.solved, st.session_state.original)
     _, enc = cv2.imencode('.png', result_img)
-    st.download_button(
-        "📥 تحميل PNG",
-        data=enc.tobytes(),
-        file_name="sudoku_solved.png",
-        mime="image/png",
-        use_container_width=True
-    )
+    st.download_button("📥 تحميل PNG", data=enc.tobytes(), file_name="sudoku_solved.png", mime="image/png", use_container_width=True)
     st.balloons()
     st.success("🎉 تم حل السودوكو بنجاح!")
+
