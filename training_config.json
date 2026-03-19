@@ -1,0 +1,22 @@
+{
+  "model_name": "model.keras",
+  "epochs": 60,
+  "batch_size": 128,
+  "learning_rate": 0.001,
+  "img_size": 28,
+  "num_classes": 10,
+  "validation_split": 0.15,
+  "confused_digits": [
+    1,
+    2,
+    4,
+    5,
+    7,
+    9
+  ],
+  "oversample_factor": 3,
+  "aug_rotation": 15,
+  "aug_zoom": 0.15,
+  "aug_shift": 0.15,
+  "aug_shear": 12
+}
